@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 from contextlib import closing
 import argparse
 import multiprocessing
@@ -8,7 +7,7 @@ import re
 import socket
 import subprocess
 import sys
-import urlparse
+import urllib.parse
 
 import bs4
 import mercurial.dispatch
@@ -38,7 +37,7 @@ def get_indexed_files(response):
     files = []
 
     for link in html.find_all('a'):
-        url = urlparse.urlparse(link.get('href'))
+        url = urllib.parse.urlparse(link.get('href'))
 
         if (url.path and
                 url.path != '.' and
@@ -297,8 +296,8 @@ def fetch_hg(url, directory, jobs, retry, timeout):
 
     def open_hook(fun):
         def wrapper(filename, *args, **kwargs):
-            if filename.startswith(hg_directory_path) and not os.path.exists(filename):
-                relpath = filename[len(hg_directory_path) + 1:]
+            if filename.decode().startswith(hg_directory_path) and not os.path.exists(filename):
+                relpath = filename[len(hg_directory_path) + 1:].decode()
 
                 with closing(session.get('%s/.hg/%s' % (url, relpath),
                                          allow_redirects=False,
@@ -321,12 +320,12 @@ def fetch_hg(url, directory, jobs, retry, timeout):
     mercurial.util.posixfile = open_hook(mercurial.util.posixfile)
 
     # run hg verify
-    mercurial.dispatch.dispatch(mercurial.dispatch.request(['verify']))
+    mercurial.dispatch.dispatch(mercurial.dispatch.request([b'verify']))
 
     printf('[-] Running hg update -C\n')
 
     # run hg update -C
-    mercurial.dispatch.dispatch(mercurial.dispatch.request(['update', '-C']))
+    mercurial.dispatch.dispatch(mercurial.dispatch.request([b'update', b'-C']))
 
     return 0
 
