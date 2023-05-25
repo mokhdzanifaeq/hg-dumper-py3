@@ -15,6 +15,10 @@ import mercurial.util
 import requests
 import socks
 
+from urllib3.exceptions import InsecureRequestWarning
+
+# Suppress only the single warning from urllib3 needed.
+requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 def printf(fmt, *args, **kwargs):
     file = kwargs.pop('file', sys.stdout)
@@ -149,6 +153,7 @@ class DownloadWorker(Worker):
 
     def init(self, url, directory, retry, timeout):
         self.session = requests.Session()
+        self.session.verify = False
         self.session.mount(url, requests.adapters.HTTPAdapter(max_retries=retry))
 
     def do_task(self, filepath, url, directory, retry, timeout):
@@ -226,7 +231,7 @@ def fetch_hg(url, directory, jobs, retry, timeout):
 
     # check for /.hg/requires
     printf('[-] Testing %s/.hg/requires', url)
-    response = requests.get('%s/.hg/requires' % url, allow_redirects=False)
+    response = requests.get('%s/.hg/requires' % url, allow_redirects=False, verify=False)
     printf('[%d]\n', response.status_code)
 
     if response.status_code != 200:
@@ -238,7 +243,7 @@ def fetch_hg(url, directory, jobs, retry, timeout):
 
     # check for directory listing
     printf('[-] Testing %s/.hg/ ', url)
-    response = requests.get('%s/.hg/' % url, allow_redirects=False)
+    response = requests.get('%s/.hg/' % url, allow_redirects=False, verify=False)
     printf('[%d]\n', response.status_code)
 
     if response.status_code == 200 and is_html(response) and 'requires' in get_indexed_files(response):
@@ -291,12 +296,13 @@ def fetch_hg(url, directory, jobs, retry, timeout):
 
     os.chdir(directory)
     session = requests.Session()
+    session.verify = False
     session.mount(url, requests.adapters.HTTPAdapter(max_retries=retry))
     hg_directory_path = os.path.join(directory, '.hg')
 
     def open_hook(fun):
         def wrapper(filename, *args, **kwargs):
-            if filename.decode().startswith(hg_directory_path) and not os.path.exists(filename):
+            if filename.startswith(hg_directory_path.encode()) and not os.path.exists(filename):
                 relpath = filename[len(hg_directory_path) + 1:].decode()
 
                 with closing(session.get('%s/.hg/%s' % (url, relpath),
